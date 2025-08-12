@@ -1,0 +1,49 @@
+:root{
+  --primary:#1E3A8A; /* Dark Blue */
+  --accent:#22C55E;  /* Green */
+  --secondary:#F5F6FA; /* Light Gray */
+  --neutral:#94A3B8;  /* Medium Gray */
+  --text:#111827;     /* Charcoal */
+}
+
+body.bg-body{
+  background: var(--secondary);
+  color: var(--text);
+  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+}
+
+.app-title{
+  font-family: Montserrat, Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.btn-primary{
+  background-color: var(--primary);
+  border-color: var(--primary);
+  border-radius: .6rem;
+}
+.btn-primary:hover{
+  background-color: #1a347a;
+  border-color: #1a347a;
+}
+
+.btn-success{
+  background-color: var(--accent);
+  border-color: var(--accent);
+}
+
+.card{
+  border-radius: 1rem;
+}
+
+.form-select, .form-control{
+  border-color: var(--neutral);
+  border-radius: .6rem;
+}
+
+.alert{
+  border-radius: .6rem;
+}
+
+

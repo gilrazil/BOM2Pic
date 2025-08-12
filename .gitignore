@@ -1,0 +1,24 @@
+# General
+.DS_Store
+*.pyc
+__pycache__/
+.venv/
+venv/
+.env
+dist/
+build/
+
+# Python
+.pytest_cache/
+.mypy_cache/
+.coverage
+coverage.xml
+
+# Node
+node_modules/
+
+# IDE
+.idea/
+.vscode/
+
+
