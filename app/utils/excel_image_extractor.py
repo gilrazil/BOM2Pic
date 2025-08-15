@@ -192,9 +192,11 @@ def extract_images_by_column(
     xlsx_bytes: bytes,
     image_col_letter: str,
     name_col_letter: str,
-    max_images: int = 50,
+    max_images: int | None = None,
 ) -> List[Tuple[str, bytes]]:
     """Extract images anchored in the specified image column and rename from name column.
+
+    If ``max_images`` is ``None`` or less than or equal to zero, no per-file image limit is enforced.
 
     Returns list of tuples (filename, png_bytes) ordered by row.
     """
@@ -244,7 +246,7 @@ def extract_images_by_column(
             png_bytes = _convert_to_png(raw_bytes)
             results.append((filename, png_bytes))
 
-            if len(results) > max_images:
+            if max_images and max_images > 0 and len(results) > max_images:
                 raise ValueError(f"Too many images: limit is {max_images}")
 
         return results

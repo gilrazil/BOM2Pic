@@ -21,8 +21,11 @@ LOGO_DIR = APP_DIR.parent / "Logo"
 
 # Limits can be overridden via environment variables
 MAX_UPLOAD_MB = int(os.getenv("MAX_UPLOAD_MB", "20"))
-MAX_IMAGES = int(os.getenv("MAX_IMAGES", "50"))
-MAX_FILES = int(os.getenv("MAX_FILES", "10"))
+# Unlimited images/files by default; enable limits only if env vars are set to positive integers
+MAX_IMAGES_ENV = os.getenv("MAX_IMAGES")
+MAX_IMAGES = int(MAX_IMAGES_ENV) if (MAX_IMAGES_ENV and MAX_IMAGES_ENV.isdigit()) else 0
+MAX_FILES_ENV = os.getenv("MAX_FILES")
+MAX_FILES = int(MAX_FILES_ENV) if (MAX_FILES_ENV and MAX_FILES_ENV.isdigit()) else 0
 
 
 app = FastAPI(title="BOM2Pic", version="0.1.0")
@@ -96,7 +99,7 @@ async def process(
     # Validate files
     if not files:
         raise HTTPException(status_code=400, detail="No files uploaded")
-    if len(files) > MAX_FILES:
+    if MAX_FILES and MAX_FILES > 0 and len(files) > MAX_FILES:
         raise HTTPException(status_code=400, detail=f"Too many files. Max {MAX_FILES}")
 
     # Validate columns
@@ -133,7 +136,7 @@ async def process(
                     xlsx_bytes=contents,
                     image_col_letter=imageColumn,
                     name_col_letter=nameColumn,
-                    max_images=MAX_IMAGES,
+                    max_images=MAX_IMAGES if MAX_IMAGES > 0 else None,
                 )
             except ValueError as ve:
                 raise HTTPException(status_code=400, detail=f"{original_name}: {ve}")
