@@ -30,6 +30,21 @@ class AnchoredImage:
     media_path: str  # e.g., xl/media/image1.png
 
 
+@dataclass
+class ExtractedImageDetail:
+    """Detailed extracted image record.
+
+    row: 1-based Excel row index
+    sheet: worksheet title
+    name_raw: cell value from the name column (unmodified string)
+    image_bytes: original image bytes from the workbook (unconverted)
+    """
+    row: int
+    sheet: str
+    name_raw: str
+    image_bytes: bytes
+
+
 def column_letter_to_index(letter: str) -> int:
     """Convert Excel column letter (A..Z, AA, AB..) to zero-based index."""
     return int(column_index_from_string(letter.strip().upper())) - 1
@@ -245,6 +260,57 @@ def extract_images_by_column(
             raw_bytes = zf.read(ai.media_path)
             png_bytes = _convert_to_png(raw_bytes)
             results.append((filename, png_bytes))
+
+            if max_images and max_images > 0 and len(results) > max_images:
+                raise ValueError(f"Too many images: limit is {max_images}")
+
+        return results
+
+
+def extract_images_details(
+    xlsx_bytes: bytes,
+    image_col_letter: str,
+    name_col_letter: str,
+    max_images: int | None = None,
+) -> List[ExtractedImageDetail]:
+    """Extract raw images and associated metadata from the first worksheet.
+
+    - Returns a list ordered top-to-bottom by row.
+    - Does not modify image format; returns original bytes.
+    - Reads the name column cell value as-is (converted to string later by caller).
+    - If ``max_images`` is set (>0), enforces a cap per workbook.
+    """
+    img_col_idx = column_letter_to_index(image_col_letter)
+    name_col_idx = column_letter_to_index(name_col_letter)
+
+    wb = load_workbook(io.BytesIO(xlsx_bytes), data_only=True, read_only=False)
+    ws = wb.worksheets[0]
+
+    with zipfile.ZipFile(io.BytesIO(xlsx_bytes)) as zf:
+        sheet_xml, sheet_rels = _get_first_sheet_paths(zf)
+        drawing_xml_path = _find_drawing_for_sheet(zf, sheet_xml, sheet_rels)
+        if not drawing_xml_path:
+            return []
+
+        rel_map = _map_drawing_relations(zf, drawing_xml_path)
+        anchors = _parse_anchored_images(zf, drawing_xml_path)
+
+        anchored_images: List[AnchoredImage] = []
+        for row_zero, col_zero, r_embed in anchors:
+            if r_embed in rel_map:
+                media_path = rel_map[r_embed]
+                anchored_images.append(AnchoredImage(row=row_zero, col=col_zero, media_path=media_path))
+
+        filtered = [ai for ai in anchored_images if ai.col == img_col_idx]
+        filtered.sort(key=lambda x: x.row)
+
+        results: List[ExtractedImageDetail] = []
+        for ai in filtered:
+            row_number = ai.row + 1
+            name_cell = ws.cell(row=row_number, column=name_col_idx + 1).value
+            name_raw = str(name_cell) if name_cell is not None else f"image_row{row_number}"
+            raw_bytes = zf.read(ai.media_path)
+            results.append(ExtractedImageDetail(row=row_number, sheet=ws.title, name_raw=name_raw, image_bytes=raw_bytes))
 
             if max_images and max_images > 0 and len(results) > max_images:
                 raise ValueError(f"Too many images: limit is {max_images}")

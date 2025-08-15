@@ -76,6 +76,12 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
+      // Read counts from headers for summary
+      const written = parseInt(resp.headers.get('X-B2P-Written') || '0', 10);
+      const overwrittenSame = parseInt(resp.headers.get('X-B2P-Overwritten-Same') || '0', 10);
+      const overwrittenDiff = parseInt(resp.headers.get('X-B2P-Overwritten-Diff') || '0', 10);
+      const total = parseInt(resp.headers.get('X-B2P-Total') || '0', 10);
+
       const blob = await resp.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -85,7 +91,7 @@ document.addEventListener('DOMContentLoaded', () => {
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
-      setAlert('ZIP downloaded successfully.', 'success');
+      setAlert(`ZIP ready. Processed: ${total}. Written: ${written}. Overwritten (same): ${overwrittenSame}. Overwritten (diff): ${overwrittenDiff}.`, 'success');
     } catch (err) {
       console.error(err);
       setAlert('Unexpected error. Please try again.');
