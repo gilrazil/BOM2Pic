@@ -1,7 +1,7 @@
 from pathlib import Path
 import os
 from io import BytesIO
-from typing import Optional
+ 
 
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -18,8 +18,9 @@ APP_DIR = Path(__file__).parent
 STATIC_DIR = APP_DIR / "static"
 LOGO_DIR = APP_DIR.parent / "Logo"
 
-MAX_UPLOAD_MB = 20
-MAX_IMAGES = 50
+# Limits can be overridden via environment variables
+MAX_UPLOAD_MB = int(os.getenv("MAX_UPLOAD_MB", "20"))
+MAX_IMAGES = int(os.getenv("MAX_IMAGES", "50"))
 
 
 app = FastAPI(title="BOM2Pic", version="0.1.0")
@@ -67,6 +68,16 @@ if LOGO_DIR.exists():
 def root() -> FileResponse:
     index_path = STATIC_DIR / "index.html"
     return FileResponse(index_path)
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon() -> FileResponse:
+    # Serve the logo PNG as favicon to avoid 404s; modern browsers accept PNG
+    logo_png = LOGO_DIR / "BOM2Pic_Logo.png"
+    if logo_png.exists():
+        return FileResponse(logo_png)
+    # Fallback to 404 if the logo is missing
+    raise HTTPException(status_code=404, detail="favicon not available")
 
 
 @app.get("/health", include_in_schema=False)
