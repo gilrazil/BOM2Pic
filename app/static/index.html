@@ -25,10 +25,10 @@
 
               <form id="uploadForm" class="needs-validation" novalidate>
                 <div class="mb-3">
-                  <label for="xlsxFile" class="form-label">Excel file (.xlsx)</label>
-                  <input class="form-control" type="file" id="xlsxFile" name="file" accept=".xlsx" required />
-                  <div class="form-text">Max 20MB. First worksheet will be used.</div>
-                  <div class="invalid-feedback">Please select a valid .xlsx file (max 20MB).</div>
+                  <label for="xlsxFiles" class="form-label">Excel files (.xlsx)</label>
+                  <input class="form-control" type="file" id="xlsxFiles" name="files" accept=".xlsx" multiple webkitdirectory directory />
+                  <div class="form-text">Select one or more .xlsx files, or choose a folder. Max size per file: 20MB.</div>
+                  <div class="invalid-feedback">Please select at least one valid .xlsx file.</div>
                 </div>
 
                 <div class="row g-3">

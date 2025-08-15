@@ -1,7 +1,8 @@
 from pathlib import Path
 import os
+import re
 from io import BytesIO
- 
+from typing import List
 
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -21,6 +22,7 @@ LOGO_DIR = APP_DIR.parent / "Logo"
 # Limits can be overridden via environment variables
 MAX_UPLOAD_MB = int(os.getenv("MAX_UPLOAD_MB", "20"))
 MAX_IMAGES = int(os.getenv("MAX_IMAGES", "50"))
+MAX_FILES = int(os.getenv("MAX_FILES", "10"))
 
 
 app = FastAPI(title="BOM2Pic", version="0.1.0")
@@ -87,20 +89,15 @@ def health() -> JSONResponse:
 
 @app.post("/process")
 async def process(
-    file: UploadFile = File(..., description="Excel .xlsx file"),
+    files: List[UploadFile] = File(..., description="One or more Excel .xlsx files"),
     imageColumn: str = Form(..., min_length=1, max_length=2),
     nameColumn: str = Form(..., min_length=1, max_length=2),
 ):
-    # Validate file extension
-    filename = file.filename or "uploaded.xlsx"
-    if not filename.lower().endswith(".xlsx"):
-        raise HTTPException(status_code=400, detail="Only .xlsx files are supported")
-
-    # Read content and check size
-    contents = await file.read()
-    size_mb = len(contents) / (1024 * 1024)
-    if size_mb > MAX_UPLOAD_MB:
-        raise HTTPException(status_code=400, detail=f"File too large. Max {MAX_UPLOAD_MB}MB")
+    # Validate files
+    if not files:
+        raise HTTPException(status_code=400, detail="No files uploaded")
+    if len(files) > MAX_FILES:
+        raise HTTPException(status_code=400, detail=f"Too many files. Max {MAX_FILES}")
 
     # Validate columns
     try:
@@ -109,28 +106,51 @@ async def process(
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid column letter(s)")
 
-    try:
-        images = extract_images_by_column(
-            xlsx_bytes=contents,
-            image_col_letter=imageColumn,
-            name_col_letter=nameColumn,
-            max_images=MAX_IMAGES,
-        )
-    except ValueError as ve:
-        raise HTTPException(status_code=400, detail=str(ve))
-    except Exception as exc:  # pragma: no cover - generic safety net
-        return JSONResponse(status_code=500, content={"detail": f"Processing failed: {exc}"})
+    # Helper for safe folder names derived from workbook filenames
+    def _safe_folder_name(name: str) -> str:
+        stem = Path(name).stem
+        stem = re.sub(r"[^A-Za-z0-9._-]+", "_", stem).strip("._-")
+        return stem or "workbook"
 
-    if not images:
-        raise HTTPException(status_code=400, detail="No images found in the selected column")
-
-    # Create ZIP in-memory
+    # Create ZIP in-memory aggregating all files
     import zipfile
 
+    total_images = 0
     zip_buffer = BytesIO()
     with zipfile.ZipFile(zip_buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
-        for filename, png_bytes in images:
-            zf.writestr(filename, png_bytes)
+        for upload in files:
+            original_name = upload.filename or "uploaded.xlsx"
+            if not original_name.lower().endswith(".xlsx"):
+                raise HTTPException(status_code=400, detail=f"Only .xlsx files are supported (got {original_name})")
+
+            contents = await upload.read()
+            size_mb = len(contents) / (1024 * 1024)
+            if size_mb > MAX_UPLOAD_MB:
+                raise HTTPException(status_code=400, detail=f"{original_name}: File too large. Max {MAX_UPLOAD_MB}MB")
+
+            try:
+                images = extract_images_by_column(
+                    xlsx_bytes=contents,
+                    image_col_letter=imageColumn,
+                    name_col_letter=nameColumn,
+                    max_images=MAX_IMAGES,
+                )
+            except ValueError as ve:
+                raise HTTPException(status_code=400, detail=f"{original_name}: {ve}")
+            except Exception as exc:  # pragma: no cover - generic safety net
+                return JSONResponse(status_code=500, content={"detail": f"Processing failed for {original_name}: {exc}"})
+
+            if not images:
+                # Skip empty files but continue others
+                continue
+
+            folder = _safe_folder_name(original_name)
+            for img_filename, png_bytes in images:
+                zf.writestr(f"{folder}/{img_filename}", png_bytes)
+            total_images += len(images)
+
+    if total_images == 0:
+        raise HTTPException(status_code=400, detail="No images found in the selected column(s) across uploaded files")
 
     zip_buffer.seek(0)
     headers = {

@@ -35,23 +35,29 @@ document.addEventListener('DOMContentLoaded', () => {
     e.preventDefault();
     clearAlert();
 
-    const fileInput = document.getElementById('xlsxFile');
-    const file = fileInput.files[0];
+    const fileInput = document.getElementById('xlsxFiles');
+    const files = Array.from(fileInput.files || []);
     const imageColumn = document.getElementById('imageColumn').value;
     const nameColumn = document.getElementById('nameColumn').value;
 
     // Basic validation
-    if (!file || !file.name.toLowerCase().endsWith('.xlsx')) {
-      setAlert('Please select a valid .xlsx file.');
+    if (!files.length) {
+      setAlert('Please select at least one .xlsx file (you can also choose a folder).');
       return;
     }
-    if (file.size > 20 * 1024 * 1024) {
-      setAlert('File too large. Max 20MB.');
+    const tooBig = files.find(f => f.size > 20 * 1024 * 1024);
+    if (tooBig) {
+      setAlert(`File too large: ${tooBig.name}. Max 20MB each.`);
+      return;
+    }
+    const invalid = files.find(f => !f.name.toLowerCase().endsWith('.xlsx'));
+    if (invalid) {
+      setAlert(`Unsupported file: ${invalid.name}. Only .xlsx files are allowed.`);
       return;
     }
 
     const formData = new FormData();
-    formData.append('file', file);
+    for (const f of files) formData.append('files', f, f.name);
     formData.append('imageColumn', imageColumn);
     formData.append('nameColumn', nameColumn);
 
