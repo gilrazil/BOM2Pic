@@ -1,4 +1,5 @@
 from pathlib import Path
+import os
 from io import BytesIO
 from typing import Optional
 
@@ -23,9 +24,35 @@ MAX_IMAGES = 50
 
 app = FastAPI(title="BOM2Pic", version="0.1.0")
 
+
+def get_allowed_origins() -> list[str]:
+    """Return allowed CORS origins.
+
+    Priority:
+    1. `ALLOWED_ORIGINS` env var (comma-separated)
+    2. `RENDER_EXTERNAL_URL` env var (automatically set on Render)
+    3. Local development defaults
+    """
+    env_origins = os.getenv("ALLOWED_ORIGINS")
+    if env_origins:
+        return [origin.strip().rstrip("/") for origin in env_origins.split(",") if origin.strip()]
+
+    render_url = os.getenv("RENDER_EXTERNAL_URL")
+    origins: list[str] = []
+    if render_url:
+        origins.append(render_url.rstrip("/"))
+
+    # Local development defaults
+    origins.extend([
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+        "http://localhost:3000",
+    ])
+    return origins
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=get_allowed_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -40,6 +67,11 @@ if LOGO_DIR.exists():
 def root() -> FileResponse:
     index_path = STATIC_DIR / "index.html"
     return FileResponse(index_path)
+
+
+@app.get("/health", include_in_schema=False)
+def health() -> JSONResponse:
+    return JSONResponse(content={"status": "ok"})
 
 
 @app.post("/process")
