@@ -229,7 +229,7 @@ async def process(
     if total_images == 0:
         raise HTTPException(status_code=400, detail="No images found in the selected column(s) across uploaded files")
 
-    # Write manifest.csv at root
+    # Write report.csv at root
     # Reopen in append mode to add the manifest after iterating
     with zipfile.ZipFile(zip_buffer, mode="a", compression=zipfile.ZIP_DEFLATED, compresslevel=7) as zf:
         output = []
@@ -237,7 +237,7 @@ async def process(
         for r in manifest_rows:
             source_file, sheet, rownum, final_name, digest, action = r
             output.append(f"{source_file},{sheet},{rownum},{final_name},{digest},{action}\n")
-        zf.writestr("manifest.csv", "".join(output))
+        zf.writestr("report.csv", "".join(output))
 
     # Timestamped filename
     timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
