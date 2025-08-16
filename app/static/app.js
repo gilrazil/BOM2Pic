@@ -76,22 +76,24 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
-      // Read counts from headers for summary
-      const written = parseInt(resp.headers.get('X-B2P-Written') || '0', 10);
-      const overwrittenSame = parseInt(resp.headers.get('X-B2P-Overwritten-Same') || '0', 10);
-      const overwrittenDiff = parseInt(resp.headers.get('X-B2P-Overwritten-Diff') || '0', 10);
-      const total = parseInt(resp.headers.get('X-B2P-Total') || '0', 10);
+      // Read counts from headers for KISS summary (filename-only duplicates)
+      const processed = parseInt(resp.headers.get('X-B2P-Processed') || '0', 10);
+      const saved = parseInt(resp.headers.get('X-B2P-Saved') || '0', 10);
+      const duplicate = parseInt(resp.headers.get('X-B2P-Duplicate') || '0', 10);
 
       const blob = await resp.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'Bom2Pic_Images.zip';
+      // Extract filename from Content-Disposition if present
+      const cd = resp.headers.get('Content-Disposition') || '';
+      const match = cd.match(/filename\s*=\s*"?([^";]+)"?/i);
+      a.download = match ? match[1] : 'bom2pic.zip';
       document.body.appendChild(a);
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
-      setAlert(`ZIP ready. Processed: ${total}. Written: ${written}. Overwritten (same): ${overwrittenSame}. Overwritten (diff): ${overwrittenDiff}.`, 'success');
+      setAlert(`ZIP ready. Processed: ${processed}. Saved: ${saved}. Duplicate: ${duplicate}.`, 'success');
     } catch (err) {
       console.error(err);
       setAlert('Unexpected error. Please try again.');

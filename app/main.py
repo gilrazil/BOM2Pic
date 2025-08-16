@@ -1,8 +1,10 @@
 from pathlib import Path
 import os
 import re
+import io
 from io import BytesIO
 from typing import List
+import warnings
 
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -116,14 +118,9 @@ async def process(
         stem = re.sub(r"[^A-Za-z0-9._-]+", "_", stem).strip("._-")
         return stem or "workbook"
 
-    # Create ZIP in-memory aggregating all files into a single images/ folder
+    # Helper functions (KISS helpers as requested)
     import zipfile
-    import csv
-    import hashlib
     from datetime import datetime
-
-    def sha1hex(b: bytes) -> str:
-        return hashlib.sha1(b).hexdigest()
 
     def detect_extension(image_bytes: bytes) -> str:
         try:
@@ -133,7 +130,6 @@ async def process(
                 fmt = (im.format or "PNG").lower()
         except Exception:
             fmt = "png"
-        # Normalize common formats
         mapping = {
             "jpeg": "jpg",
             "jpg": "jpg",
@@ -146,37 +142,31 @@ async def process(
         return mapping.get(fmt, "png")
 
     def normalize(name: str) -> str:
-        # Trim and replace spaces
         n = (name or "").strip()
         n = n.replace(" ", "_")
-        # Remove illegal characters \/:*?"<>|
         n = re.sub(r"[\\/:*?\"<>|]+", "", n)
-        # Collapse repeated underscores
         n = re.sub(r"_+", "_", n)
-        # Lowercase
         n = n.lower()
-        # Limit to 80 characters
         return n[:80] or "image"
 
     total_images = 0
-    written = overwritten_same = overwritten_diff = 0
-    seen: dict[str, str] = {}
+    saved_count = 0
+    duplicate_count = 0
+    # Track seen filenames only (no hashing)
+    seen_names: set[str] = set()
+    # source_file, sheet, row, part_name, final_filename, action
     manifest_rows: list[tuple[str, str, int, str, str, str]] = []
+
+    # Suppress duplicate-name warnings from zipfile when overwriting the same path
+    warnings.filterwarnings("ignore", category=UserWarning, module="zipfile", message=r"Duplicate name: .*")
 
     zip_buffer = BytesIO()
     with zipfile.ZipFile(zip_buffer, mode="w", compression=zipfile.ZIP_DEFLATED, compresslevel=7) as zf:
-        # Add a placeholder so images/ exists early (not strictly required)
         images_dir = "images/"
-        # Process in the order provided by the user; fallback to filename alphabetical
-        ordered_uploads = files if files else []
+        # Process in user-provided order; fallback to filename alphabetical if needed
+        ordered_uploads = files or []
         if not ordered_uploads:
-            pass
-        else:
-            # Ensure stable fallback if client reorders: use original list, otherwise sort by filename
-            try:
-                ordered_uploads = files
-            except Exception:
-                ordered_uploads = sorted(files, key=lambda u: (u.filename or ""))
+            ordered_uploads = sorted(files, key=lambda u: (u.filename or ""))
 
         for upload in ordered_uploads:
             original_name = upload.filename or "uploaded.xlsx"
@@ -205,39 +195,38 @@ async def process(
                 continue
 
             for item in details:
-                # Normalize name and detect extension
-                base = normalize(item.name_raw)
+                part_name_raw = item.name_raw
+                base = normalize(part_name_raw)
                 ext = detect_extension(item.image_bytes)
                 final_name = f"{base}.{ext}"
-                digest = sha1hex(item.image_bytes)
-                action = "written"
-                if final_name in seen:
-                    if seen[final_name] == digest:
-                        action = "overwritten_same"
-                        overwritten_same += 1
-                    else:
-                        action = "overwritten_diff"
-                        overwritten_diff += 1
-                else:
-                    written += 1
-                seen[final_name] = digest
 
+                if final_name in seen_names:
+                    action = "Duplicate"
+                    duplicate_count += 1
+                else:
+                    action = "Saved"
+                    saved_count += 1
+                    seen_names.add(final_name)
+
+                # Always write; last one wins
                 zf.writestr(f"{images_dir}{final_name}", item.image_bytes)
-                manifest_rows.append((original_name, item.sheet, item.row, final_name, digest, action))
+
+                manifest_rows.append((original_name, item.sheet, item.row, part_name_raw, final_name, action))
                 total_images += 1
 
     if total_images == 0:
         raise HTTPException(status_code=400, detail="No images found in the selected column(s) across uploaded files")
 
-    # Write report.csv at root
-    # Reopen in append mode to add the manifest after iterating
+    # Write report.csv at root with exact columns requested (no hashes)
     with zipfile.ZipFile(zip_buffer, mode="a", compression=zipfile.ZIP_DEFLATED, compresslevel=7) as zf:
-        output = []
-        output.append("source_file,sheet,row,final_name,hash,action\n")
+        import csv as _csv
+        output = io.StringIO()
+        writer = _csv.writer(output, lineterminator="\n")
+        writer.writerow(["source_file", "sheet", "row", "part_name", "final_filename", "action"])
         for r in manifest_rows:
-            source_file, sheet, rownum, final_name, digest, action = r
-            output.append(f"{source_file},{sheet},{rownum},{final_name},{digest},{action}\n")
-        zf.writestr("report.csv", "".join(output))
+            source_file, sheet, rownum, part_name, final_filename, action = r
+            writer.writerow([source_file, sheet, rownum, part_name, final_filename, action])
+        zf.writestr("report.csv", output.getvalue())
 
     # Timestamped filename
     timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
@@ -245,11 +234,10 @@ async def process(
     headers = {
         "Content-Disposition": f"attachment; filename=bom2pic_{timestamp}.zip",
         "X-Content-Type-Options": "nosniff",
-        # Summary counts for UI
-        "X-B2P-Written": str(written),
-        "X-B2P-Overwritten-Same": str(overwritten_same),
-        "X-B2P-Overwritten-Diff": str(overwritten_diff),
-        "X-B2P-Total": str(total_images),
+        # KISS summary for UI
+        "X-B2P-Processed": str(total_images),
+        "X-B2P-Saved": str(saved_count),
+        "X-B2P-Duplicate": str(duplicate_count),
     }
     return StreamingResponse(zip_buffer, media_type="application/zip", headers=headers)
 
