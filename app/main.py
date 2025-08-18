@@ -180,12 +180,12 @@ async def process(
 
             # Extract images without any quota limits
             try:
-                soft_limit = MAX_IMAGES if MAX_IMAGES > 0 else None
+                max_images = MAX_IMAGES if MAX_IMAGES > 0 else None
                 details = extract_images_details(
                     xlsx_bytes=contents,
                     image_col_letter=imageColumn,
                     name_col_letter=nameColumn,
-                    soft_limit=soft_limit,
+                    max_images=max_images,
                 )
             except ValueError as ve:
                 raise HTTPException(status_code=400, detail=f"{original_name}: {ve}")
