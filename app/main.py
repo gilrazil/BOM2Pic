@@ -178,7 +178,7 @@ async def process(
             if size_mb > MAX_UPLOAD_MB:
                 raise HTTPException(status_code=400, detail=f"{original_name}: File too large. Max {MAX_UPLOAD_MB}MB")
 
-            # Extract images without any quota limits
+            # Extract images (no quota limits in clean version)
             try:
                 max_images = MAX_IMAGES if MAX_IMAGES > 0 else None
                 details = extract_images_details(
