@@ -104,23 +104,28 @@ document.addEventListener('DOMContentLoaded', function() {
     e.preventDefault();
     clearAlert();
 
-    const files = Array.from(fileInput.files || []);
+    const allFiles = Array.from(fileInput.files || []);
     const imageColumn = document.getElementById('imageColumn').value;
     const nameColumn = document.getElementById('nameColumn').value;
 
+    // Filter out system files like .DS_Store
+    const files = allFiles.filter(f => {
+      const name = f.name.toLowerCase();
+      return !name.startsWith('.') && name.endsWith('.xlsx');
+    });
+
     // Basic validation
     if (!files.length) {
-      setAlert('Please select at least one .xlsx file (you can also choose a folder).');
+      if (allFiles.length > 0) {
+        setAlert('No valid .xlsx files found. Please select Excel files only.');
+      } else {
+        setAlert('Please select at least one .xlsx file (you can also choose a folder).');
+      }
       return;
     }
     const tooBig = files.find(f => f.size > 20 * 1024 * 1024);
     if (tooBig) {
       setAlert(`File too large: ${tooBig.name}. Max 20MB each.`);
-      return;
-    }
-    const invalid = files.find(f => !f.name.toLowerCase().endsWith('.xlsx'));
-    if (invalid) {
-      setAlert(`Unsupported file: ${invalid.name}. Only .xlsx files are allowed.`);
       return;
     }
 
