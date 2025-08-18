@@ -318,3 +318,52 @@ def extract_images_details(
         return results
 
 
+def extract_images_details_with_total(
+    xlsx_bytes: bytes,
+    image_col_letter: str,
+    name_col_letter: str,
+    soft_limit: int | None = None,
+) -> Tuple[List[ExtractedImageDetail], int]:
+    """Extract images similarly to extract_images_details, but return total available and
+    optionally stop early at soft_limit without raising.
+
+    Returns: (results, total_available)
+    """
+    img_col_idx = column_letter_to_index(image_col_letter)
+    name_col_idx = column_letter_to_index(name_col_letter)
+
+    wb = load_workbook(io.BytesIO(xlsx_bytes), data_only=True, read_only=False)
+    ws = wb.worksheets[0]
+
+    with zipfile.ZipFile(io.BytesIO(xlsx_bytes)) as zf:
+        sheet_xml, sheet_rels = _get_first_sheet_paths(zf)
+        drawing_xml_path = _find_drawing_for_sheet(zf, sheet_xml, sheet_rels)
+        if not drawing_xml_path:
+            return [], 0
+
+        rel_map = _map_drawing_relations(zf, drawing_xml_path)
+        anchors = _parse_anchored_images(zf, drawing_xml_path)
+
+        anchored_images: List[AnchoredImage] = []
+        for row_zero, col_zero, r_embed in anchors:
+            if r_embed in rel_map:
+                media_path = rel_map[r_embed]
+                anchored_images.append(AnchoredImage(row=row_zero, col=col_zero, media_path=media_path))
+
+        filtered = [ai for ai in anchored_images if ai.col == img_col_idx]
+        filtered.sort(key=lambda x: x.row)
+
+        total_available = len(filtered)
+
+        results: List[ExtractedImageDetail] = []
+        max_count = soft_limit if (soft_limit and soft_limit > 0) else total_available
+        for ai in filtered[:max_count]:
+            row_number = ai.row + 1
+            name_cell = ws.cell(row=row_number, column=name_col_idx + 1).value
+            name_raw = str(name_cell) if name_cell is not None else f"image_row{row_number}"
+            raw_bytes = zf.read(ai.media_path)
+            results.append(ExtractedImageDetail(row=row_number, sheet=ws.title, name_raw=name_raw, image_bytes=raw_bytes))
+
+        return results, total_available
+
+

@@ -178,12 +178,14 @@ async def process(
             if size_mb > MAX_UPLOAD_MB:
                 raise HTTPException(status_code=400, detail=f"{original_name}: File too large. Max {MAX_UPLOAD_MB}MB")
 
+            # Extract images without any quota limits
             try:
+                soft_limit = MAX_IMAGES if MAX_IMAGES > 0 else None
                 details = extract_images_details(
                     xlsx_bytes=contents,
                     image_col_letter=imageColumn,
                     name_col_letter=nameColumn,
-                    max_images=MAX_IMAGES if MAX_IMAGES > 0 else None,
+                    soft_limit=soft_limit,
                 )
             except ValueError as ve:
                 raise HTTPException(status_code=400, detail=f"{original_name}: {ve}")
@@ -231,6 +233,7 @@ async def process(
     # Timestamped filename
     timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
     zip_buffer.seek(0)
+
     headers = {
         "Content-Disposition": f"attachment; filename=bom2pic_{timestamp}.zip",
         "X-Content-Type-Options": "nosniff",
@@ -246,5 +249,3 @@ if __name__ == "__main__":  # pragma: no cover
     import uvicorn
 
     uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
-
-
