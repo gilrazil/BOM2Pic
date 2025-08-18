@@ -29,8 +29,11 @@
               <form id="uploadForm" class="needs-validation" novalidate>
                 <div class="mb-3" id="choose-files">
                   <label for="xlsxFiles" class="form-label"><span class="step-badge gutter me-2">Step 1.</span>Excel files (.xlsx)</label>
-                  <input class="form-control" type="file" id="xlsxFiles" name="files" accept=".xlsx" multiple webkitdirectory directory />
-                  <div class="form-text">Select one or more .xlsx files, or choose a folder. Max size per file: 20MB.</div>
+                  <div class="d-flex gap-2">
+                    <input class="form-control" type="file" id="xlsxFiles" name="files" accept=".xlsx" multiple />
+                    <button type="button" id="folderBtn" class="btn btn-outline-secondary" title="Choose folder (Chrome/Safari only)">📁</button>
+                  </div>
+                  <div class="form-text">Select one or more .xlsx files. Chrome/Safari users can also choose folders using the 📁 button.</div>
                   <div class="invalid-feedback">Please select at least one valid .xlsx file.</div>
                 </div>
 
@@ -68,7 +71,7 @@
     </div>
 
 
-    <script src="/static/app.js?v=5"></script>
+    <script src="/static/app.js?v=6"></script>
   </body>
   </html>
 

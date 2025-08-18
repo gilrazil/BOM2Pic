@@ -1,6 +1,7 @@
 document.addEventListener('DOMContentLoaded', function() {
   const form = document.getElementById('uploadForm');
   const fileInput = document.getElementById('xlsxFiles');
+  const folderBtn = document.getElementById('folderBtn');
   const imageColumnSelect = document.getElementById('imageColumn');
   const nameColumnSelect = document.getElementById('nameColumn');
   const processBtn = document.getElementById('processBtn');
@@ -99,6 +100,39 @@ document.addEventListener('DOMContentLoaded', function() {
   // Initialize counter display
   const currentCount = getCumulativeCount();
   updateCounterDisplay(currentCount);
+
+  // Handle folder button (Chrome/Safari only)
+  if (folderBtn) {
+    folderBtn.addEventListener('click', function() {
+      // Create a temporary input for folder selection
+      const folderInput = document.createElement('input');
+      folderInput.type = 'file';
+      folderInput.accept = '.xlsx';
+      folderInput.multiple = true;
+      folderInput.webkitdirectory = true;
+      
+      folderInput.onchange = function() {
+        // Transfer files from folder input to main input
+        const dt = new DataTransfer();
+        for (const file of folderInput.files) {
+          if (file.name.toLowerCase().endsWith('.xlsx')) {
+            dt.items.add(file);
+          }
+        }
+        fileInput.files = dt.files;
+        
+        // Trigger change event
+        fileInput.dispatchEvent(new Event('change', { bubbles: true }));
+      };
+      
+      folderInput.click();
+    });
+
+    // Hide folder button on browsers that don't support webkitdirectory
+    if (!('webkitdirectory' in document.createElement('input'))) {
+      folderBtn.style.display = 'none';
+    }
+  }
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
