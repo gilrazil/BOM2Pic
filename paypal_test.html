@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PayPal Credentials Test</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            max-width: 600px; 
+            margin: 50px auto; 
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 { color: #0070ba; }
+        .test-info {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        #paypal-button {
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 PayPal Credentials Test</h1>
+        
+        <div class="test-info">
+            <strong>Testing:</strong> $9.99 payment with your sandbox credentials<br>
+            <strong>Client ID:</strong> ATv23_KuahdHfUXwXcC55akC6TbAph9EiVNF6aywRTHTyaaCJtagCRwH3nQZQYeyPbSsYUTFWIcjg3FR
+        </div>
+
+        <p>Click the PayPal button below to test your sandbox credentials:</p>
+        
+        <div id="paypal-button"></div>
+        
+        <div id="result"></div>
+    </div>
+
+    <!-- PayPal SDK with your Sandbox Client ID -->
+    <script src="https://www.paypal.com/sdk/js?client-id=ATv23_KuahdHfUXwXcC55akC6TbAph9EiVNF6aywRTHTyaaCJtagCRwH3nQZQYeyPbSsYUTFWIcjg3FR&currency=USD&intent=capture"></script>
+    
+    <script>
+        paypal.Buttons({
+            createOrder: (data, actions) => {
+                console.log('Creating PayPal order...');
+                return actions.order.create({
+                    purchase_units: [{
+                        amount: {
+                            value: '9.99',
+                            currency_code: 'USD'
+                        }
+                    }]
+                });
+            },
+            onApprove: async (data, actions) => {
+                console.log('Payment approved, capturing...', data);
+                try {
+                    const details = await actions.order.capture();
+                    console.log('CAPTURED:', details);
+                    
+                    document.getElementById('result').innerHTML = `
+                        <div style="background: #d4edda; color: #155724; padding: 15px; border-radius: 5px; margin: 20px 0;">
+                            <h3>✅ SUCCESS!</h3>
+                            <p><strong>Payment ID:</strong> ${details.id}</p>
+                            <p><strong>Status:</strong> ${details.status}</p>
+                            <p><strong>Payer:</strong> ${details.payer.email_address}</p>
+                            <p>Your PayPal credentials are working perfectly! 🎉</p>
+                        </div>
+                    `;
+                } catch (error) {
+                    console.error('Capture error:', error);
+                    document.getElementById('result').innerHTML = `
+                        <div style="background: #f8d7da; color: #721c24; padding: 15px; border-radius: 5px; margin: 20px 0;">
+                            <h3>❌ Capture Failed</h3>
+                            <p>${error.message}</p>
+                        </div>
+                    `;
+                }
+            },
+            onError: (err) => {
+                console.error('PayPal error:', err);
+                document.getElementById('result').innerHTML = `
+                    <div style="background: #f8d7da; color: #721c24; padding: 15px; border-radius: 5px; margin: 20px 0;">
+                        <h3>❌ PayPal Error</h3>
+                        <p>Check console for details</p>
+                        <p>Possible issues: Wrong client ID, wrong environment, or app not activated</p>
+                    </div>
+                `;
+            },
+            onCancel: (data) => {
+                console.log('Payment cancelled:', data);
+                document.getElementById('result').innerHTML = `
+                    <div style="background: #fff3cd; color: #856404; padding: 15px; border-radius: 5px; margin: 20px 0;">
+                        <h3>⚠️ Payment Cancelled</h3>
+                        <p>You cancelled the payment. That's OK for testing!</p>
+                    </div>
+                `;
+            }
+        }).render('#paypal-button');
+        
+        console.log('PayPal button initialized with Client ID: ATv23_KuahdHfUXwXcC55akC6TbAph9EiVNF6aywRTHTyaaCJtagCRwH3nQZQYeyPbSsYUTFWIcjg3FR');
+    </script>
+</body>
+</html>
